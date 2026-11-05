@@ -35,15 +35,20 @@ import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
+import { DepartmentAnalytics } from './components/departments/department-analytics'
+import { FlowUsageTable } from './components/flow/flow-usage-table'
+import { ModelUsageTable } from './components/models/model-usage-table'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { OverviewDashboard } from './components/overview/overview-dashboard'
+import { DashboardExportDialog } from './components/report/dashboard-export-dialog'
+import { ReportViewToggle } from './components/report/report-view-toggle'
+import { UserUsageTable } from './components/users/user-usage-table'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
+import { useReportView } from './hooks/use-report-view'
 import {
   buildDefaultDashboardFilters,
-  getDefaultDays,
   getSavedChartPreferences,
-  getSavedGranularity,
   saveChartPreferences,
 } from './lib'
 import {
@@ -55,7 +60,6 @@ import type {
   DashboardChartPreferences,
   DashboardFilters,
   QuotaDataItem,
-  UserChartsFilters,
 } from './types'
 
 const route = getRouteApi('/_authenticated/dashboard/$section')
@@ -194,15 +198,27 @@ const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
   users: {
     titleKey: 'User Analytics',
   },
+  departments: {
+    titleKey: 'Department Analytics',
+  },
 }
+
+const ADMIN_SECTIONS = new Set<DashboardSectionId>(['users', 'departments'])
 
 export function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const params = route.useParams()
   const userRole = useAuthStore((state) => state.auth.user?.role)
-  const activeSection = (params.section ??
+  const requestedSection = (params.section ??
     DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
+  const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
+  // Administrator sections fall back to model analytics for other users; the
+  // server rejects their data requests either way.
+  const activeSection =
+    !isAdmin && ADMIN_SECTIONS.has(requestedSection)
+      ? 'models'
+      : requestedSection
 
   const [modelData, setModelData] = useState<QuotaDataItem[]>([])
   const [dataLoading, setDataLoading] = useState(false)
@@ -211,17 +227,9 @@ export function Dashboard() {
   const [modelFilters, setModelFilters] = useState<DashboardFilters>(() =>
     buildDefaultDashboardFilters(getSavedChartPreferences())
   )
-  const [userChartsFilters, setUserChartsFilters] = useState<UserChartsFilters>(
-    () => {
-      const granularity = getSavedGranularity()
-      return {
-        timeGranularity: granularity,
-        selectedRange: getDefaultDays(granularity),
-        topUserLimit: 10,
-      }
-    }
-  )
+  const [topUserLimit, setTopUserLimit] = useState(10)
   const [flowSensitiveVisible, setFlowSensitiveVisible] = useState(true)
+  const [view, setView] = useReportView(activeSection)
 
   const handleFilterChange = useCallback((filters: DashboardFilters) => {
     setModelFilters(filters)
@@ -249,11 +257,11 @@ export function Dashboard() {
   )
 
   const meta = SECTION_META[activeSection] ?? SECTION_META.overview
-  const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
+        (section) =>
+          section !== 'overview' && (!ADMIN_SECTIONS.has(section) || isAdmin)
       ),
     [isAdmin]
   )
@@ -320,7 +328,25 @@ export function Dashboard() {
         />
       </>
     ) : null
-  const sectionActions = modelActions ?? flowActions
+  const rangeFilter = (
+    <ModelsFilter
+      preferences={chartPreferences}
+      currentFilters={modelFilters}
+      onFilterChange={handleFilterChange}
+      onReset={handleResetFilters}
+    />
+  )
+  const sectionActions = (
+    <>
+      {modelActions ?? flowActions ?? rangeFilter}
+      <ReportViewToggle value={view} onValueChange={setView} />
+      <DashboardExportDialog
+        filters={modelFilters}
+        role={userRole ?? 0}
+        maskSensitive={!flowSensitiveVisible}
+      />
+    </>
+  )
 
   if (activeSection === 'overview') {
     return <OverviewDashboard />
@@ -345,11 +371,9 @@ export function Dashboard() {
             ) : (
               <div />
             )}
-            {sectionActions != null && (
-              <div className='flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2'>
-                {sectionActions}
-              </div>
-            )}
+            <div className='flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2'>
+              {sectionActions}
+            </div>
           </div>
           {activeSection === 'models' && (
             <>
@@ -368,45 +392,67 @@ export function Dashboard() {
                   </Suspense>
                 </FadeIn>
               )}
-              <FadeIn delay={0.1}>
-                <Suspense fallback={<ModelChartsFallback />}>
-                  <LazyConsumptionDistributionChart
-                    data={modelData}
-                    loading={dataLoading}
-                    defaultChartType={
-                      chartPreferences.consumptionDistributionChart
-                    }
-                    timeGranularity={
-                      modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
-                    }
-                  />
-                </Suspense>
-              </FadeIn>
-              <FadeIn delay={0.15}>
-                <Suspense fallback={<ModelChartsFallback />}>
-                  <LazyModelCharts
-                    data={modelData}
-                    loading={dataLoading}
-                    defaultChartTab={chartPreferences.modelAnalyticsChart}
-                    timeGranularity={
-                      modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
-                    }
-                  />
-                </Suspense>
-              </FadeIn>
+              {view === 'table' && (
+                <FadeIn delay={0.1}>
+                  <ModelUsageTable filters={modelFilters} isAdmin={isAdmin} />
+                </FadeIn>
+              )}
+              {view === 'chart' && (
+                <>
+                  <FadeIn delay={0.1}>
+                    <Suspense fallback={<ModelChartsFallback />}>
+                      <LazyConsumptionDistributionChart
+                        data={modelData}
+                        loading={dataLoading}
+                        defaultChartType={
+                          chartPreferences.consumptionDistributionChart
+                        }
+                        timeGranularity={
+                          modelFilters.time_granularity ||
+                          DEFAULT_TIME_GRANULARITY
+                        }
+                      />
+                    </Suspense>
+                  </FadeIn>
+                  <FadeIn delay={0.15}>
+                    <Suspense fallback={<ModelChartsFallback />}>
+                      <LazyModelCharts
+                        data={modelData}
+                        loading={dataLoading}
+                        defaultChartTab={chartPreferences.modelAnalyticsChart}
+                        timeGranularity={
+                          modelFilters.time_granularity ||
+                          DEFAULT_TIME_GRANULARITY
+                        }
+                      />
+                    </Suspense>
+                  </FadeIn>
+                </>
+              )}
             </>
           )}
-          {activeSection === 'users' && (
+          {activeSection === 'users' && view === 'chart' && (
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyUserCharts
-                  filters={userChartsFilters}
-                  onFiltersChange={setUserChartsFilters}
+                  filters={modelFilters}
+                  topUserLimit={topUserLimit}
+                  onTopUserLimitChange={setTopUserLimit}
                 />
               </Suspense>
             </FadeIn>
           )}
-          {activeSection === 'flow' && (
+          {activeSection === 'users' && view === 'table' && (
+            <FadeIn>
+              <UserUsageTable filters={modelFilters} />
+            </FadeIn>
+          )}
+          {activeSection === 'departments' && (
+            <FadeIn>
+              <DepartmentAnalytics filters={modelFilters} view={view} />
+            </FadeIn>
+          )}
+          {activeSection === 'flow' && view === 'chart' && (
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyFlowCharts
@@ -414,6 +460,15 @@ export function Dashboard() {
                   sensitiveVisible={flowSensitiveVisible}
                 />
               </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'flow' && view === 'table' && (
+            <FadeIn>
+              <FlowUsageTable
+                filters={modelFilters}
+                role={userRole ?? 0}
+                maskSensitive={!flowSensitiveVisible}
+              />
             </FadeIn>
           )}
         </div>

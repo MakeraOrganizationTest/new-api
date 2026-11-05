@@ -35,6 +35,61 @@ export interface QuotaDataItem {
   quota?: number
 }
 
+export type QuotaReportDimension =
+  | 'model_name'
+  | 'user_id'
+  | 'department_id'
+  | 'top_department_id'
+  | 'mid_department_id'
+  | 'use_group'
+  | 'token_id'
+  | 'channel_id'
+  | 'node_name'
+
+export type QuotaReportGranularity =
+  | 'total'
+  | 'hour'
+  | 'day'
+  | 'week'
+  | 'month'
+  | 'quarter'
+
+export interface QuotaReportParams {
+  start_timestamp: number
+  end_timestamp: number
+  dimensions: QuotaReportDimension[]
+  granularity?: QuotaReportGranularity
+  /** Seconds east of UTC; day and longer buckets start at local midnight. */
+  tz_offset?: number
+  /** Department id, or -1 for usage without a department; admin only. */
+  department_id?: number
+  username?: string
+}
+
+/** One aggregated row; created_at is the bucket start for bucketed reports. */
+export interface QuotaReportRow {
+  created_at?: number
+  model_name?: string
+  user_id?: number
+  username?: string
+  display_name?: string
+  user_deleted?: boolean
+  department_id?: number
+  top_department_id?: number
+  mid_department_id?: number
+  use_group?: string
+  token_id?: number
+  token_name?: string
+  channel_id?: number
+  channel_name?: string
+  node_name?: string
+  count: number
+  quota: number
+  token_used: number
+  cache_read_tokens: number
+  cache_creation_tokens: number
+}
+
 export interface FlowQuotaDataItem {
   user_id?: number
   username?: string
@@ -236,7 +291,7 @@ export type PingStatusMap = Record<string, PingStatus>
 // ============================================================================
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type VChartSpec = Record<string, any>
+export type VChartSpec = Record<string, any>
 
 export interface ProcessedChartData {
   spec_pie: VChartSpec

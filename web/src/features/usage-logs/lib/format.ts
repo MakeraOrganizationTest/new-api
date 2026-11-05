@@ -477,6 +477,11 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'user.create': 'Created user {{username}} (role {{role}})',
   'user.update': 'Updated user {{username}} (ID: {{id}})',
   'user.delete': 'Deleted user {{username}} (ID: {{id}})',
+  'user.department': 'Set user department to {{department_id}}',
+  'department.create': 'Created department {{name}} (ID: {{department_id}})',
+  'department.update': 'Updated department {{name}} (ID: {{department_id}})',
+  'department.delete':
+    'Deleted department (ID: {{department_id}}), {{moved_members}} members unassigned',
   'user.account_delete': 'Account deletion',
   'user.manage': 'Performed {{action}} on user {{username}} (ID: {{id}})',
   'user.quota_add': 'Increased user quota by {{quota}}',

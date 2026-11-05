@@ -21,6 +21,8 @@ import { api } from '@/lib/api'
 import type {
   FlowQuotaDataItem,
   QuotaDataItem,
+  QuotaReportParams,
+  QuotaReportRow,
   UptimeGroupResult,
 } from './types'
 
@@ -81,6 +83,27 @@ export async function getFlowQuotaDates(
     data?: FlowQuotaDataItem[]
     message?: string
   }>(endpoint, { params })
+  return res.data
+}
+
+/**
+ * Aggregated dashboard usage grouped by dimensions and time buckets.
+ * Administrators read every user; others read only their own usage.
+ */
+export async function getQuotaReport(
+  params: QuotaReportParams,
+  isAdmin: boolean,
+  signal?: AbortSignal
+) {
+  const endpoint = isAdmin ? '/api/data/report' : '/api/data/report/self'
+  const res = await api.get<{
+    success: boolean
+    data?: QuotaReportRow[]
+    message?: string
+  }>(endpoint, {
+    params: { ...params, dimensions: params.dimensions.join(',') },
+    signal,
+  })
   return res.data
 }
 

@@ -53,6 +53,8 @@ export interface CommonLogFilters extends CommonFilters {
   token?: string
   group?: string
   username?: string
+  /** Department id, or -1 for logs without a department; administrators only. */
+  department?: string
   requestId?: string
   upstreamRequestId?: string
 }
@@ -437,6 +439,7 @@ export interface GetLogsParams {
   end_timestamp?: number
   channel?: number
   group?: string
+  department_id?: number
   request_id?: string
   upstream_request_id?: string
 }
@@ -461,6 +464,7 @@ export interface GetLogStatsParams {
   end_timestamp?: number
   channel?: number
   group?: string
+  department_id?: number
   request_id?: string
   upstream_request_id?: string
 }

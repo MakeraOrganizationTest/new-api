@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -63,6 +63,12 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
+import { setUsersDepartment } from '@/features/departments/api'
+import { DepartmentSelect } from '@/features/departments/components/department-select'
+import {
+  DEPARTMENTS_QUERY_KEY,
+  useDepartments,
+} from '@/features/departments/hooks/use-departments'
 import {
   ADMIN_PERMISSION_ACTIONS,
   ADMIN_PERMISSION_RESOURCES,
@@ -119,6 +125,9 @@ export function UsersMutateDrawer({
   // Matrix as loaded from the server; an unchanged matrix is not resubmitted so
   // routine edits of an administrator do not require step-up verification.
   const loadedPermissions = useRef<AdminPermissionMatrix | undefined>(undefined)
+
+  const queryClient = useQueryClient()
+  const { departments } = useDepartments({ enabled: open })
 
   // Fetch groups
   const { data: groupsData } = useQuery({
@@ -236,6 +245,29 @@ export function UsersMutateDrawer({
             proofToken
           )
         : await createUser(payload, proofToken)
+
+      // The department is saved through its own endpoint so a plain user
+      // update can never clear it by omission.
+      const nextDepartmentId = data.department_id ?? 0
+      if (
+        result.success &&
+        isUpdate &&
+        currentRow &&
+        nextDepartmentId !== (currentRow.department_id ?? 0)
+      ) {
+        const departmentResult = await setUsersDepartment(
+          [currentRow.id],
+          nextDepartmentId
+        )
+        if (!departmentResult.success) {
+          handleServerError(departmentResult, t('Failed to update department'))
+          triggerRefresh()
+          return
+        }
+      }
+      if (result.success && nextDepartmentId !== 0) {
+        queryClient.invalidateQueries({ queryKey: DEPARTMENTS_QUERY_KEY })
+      }
 
       if (result.success) {
         toast.success(
@@ -381,6 +413,31 @@ export function UsersMutateDrawer({
                       </FormControl>
                       <FormDescription>
                         {t('Leave empty to use username')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='department_id'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Department')}</FormLabel>
+                      <FormControl>
+                        <DepartmentSelect
+                          departments={departments}
+                          value={field.value ?? 0}
+                          onValueChange={field.onChange}
+                          emptyLabel={t('Unassigned')}
+                          aria-label={t('Department')}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Used for usage reports only. Usage already recorded stays under the previous department.'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

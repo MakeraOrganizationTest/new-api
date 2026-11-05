@@ -376,6 +376,7 @@ func migrateDB() error {
 		&CasbinRule{},
 		&AuthzRole{},
 		&UserAccessToken{},
+		&Department{},
 	)
 	if err != nil {
 		return err
@@ -415,6 +416,16 @@ func migrateClickHouseLogDB() error {
 	ttlDays := clickHouseLogTTLDays()
 	if err := LOG_DB.Exec(clickHouseLogCreateTableSQL(ttlDays)).Error; err != nil {
 		return err
+	}
+	// Columns added after the table was first created.
+	for _, column := range []string{
+		"department_id Int32 DEFAULT 0",
+		"top_department_id Int32 DEFAULT 0",
+		"mid_department_id Int32 DEFAULT 0",
+	} {
+		if err := LOG_DB.Exec("ALTER TABLE logs ADD COLUMN IF NOT EXISTS " + column).Error; err != nil {
+			return err
+		}
 	}
 	return syncClickHouseLogTTL(ttlDays)
 }
@@ -464,7 +475,10 @@ CREATE TABLE IF NOT EXISTS logs (
 	ip String DEFAULT '',
 	request_id String DEFAULT '',
 	upstream_request_id String DEFAULT '',
-	other String DEFAULT ''
+	other String DEFAULT '',
+	department_id Int32 DEFAULT 0,
+	top_department_id Int32 DEFAULT 0,
+	mid_department_id Int32 DEFAULT 0
 )
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(toDateTime(created_at))

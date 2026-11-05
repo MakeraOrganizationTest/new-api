@@ -39,6 +39,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useDepartments } from '@/features/departments/hooks/use-departments'
+import { getDepartmentOptions } from '@/features/departments/lib/tree'
+import { DEPARTMENT_UNASSIGNED } from '@/features/departments/types'
 import { getGroups } from '@/features/users/api'
 import { useMediaQuery } from '@/hooks'
 import { getUserGroups } from '@/lib/api'
@@ -92,6 +95,7 @@ function buildSearchSourceKey(values: {
   token?: unknown
   group?: unknown
   username?: unknown
+  department?: unknown
   requestId?: unknown
   upstreamRequestId?: unknown
   type?: unknown
@@ -104,6 +108,7 @@ function buildSearchSourceKey(values: {
     values.token,
     values.group,
     values.username,
+    values.department,
     values.requestId,
     values.upstreamRequestId,
     Array.isArray(values.type) ? values.type.join(',') : values.type,
@@ -145,6 +150,20 @@ export function CommonLogsFilterBar<TData>(
       .filter((group) => group !== 'auto')
       .map((group) => ({ label: group, value: group }))
   }, [isAdmin, adminGroups, userGroups])
+  const { departments } = useDepartments({
+    includeDeleted: true,
+    enabled: isAdmin,
+  })
+  const departmentOptions = useMemo(
+    () => [
+      { label: t('Unassigned'), value: String(DEPARTMENT_UNASSIGNED) },
+      ...getDepartmentOptions(departments, t('(Deleted)')).map((option) => ({
+        label: option.label,
+        value: option.value,
+      })),
+    ],
+    [departments, t]
+  )
 
   const searchState = useMemo<CommonLogDraft>(() => {
     const { start, end } = getDefaultTimeRange()
@@ -156,6 +175,7 @@ export function CommonLogsFilterBar<TData>(
       token: searchParams.token,
       group: searchParams.group,
       username: searchParams.username,
+      department: searchParams.department,
       requestId: searchParams.requestId,
       upstreamRequestId: searchParams.upstreamRequestId,
       type: searchParams.type,
@@ -170,6 +190,7 @@ export function CommonLogsFilterBar<TData>(
       token: searchParams.token || undefined,
       group: searchParams.group || undefined,
       username: searchParams.username || undefined,
+      department: searchParams.department || undefined,
       requestId: searchParams.requestId || undefined,
       upstreamRequestId: searchParams.upstreamRequestId || undefined,
     }
@@ -186,6 +207,7 @@ export function CommonLogsFilterBar<TData>(
     searchParams.token,
     searchParams.group,
     searchParams.username,
+    searchParams.department,
     searchParams.requestId,
     searchParams.upstreamRequestId,
     searchParams.type,
@@ -265,6 +287,7 @@ export function CommonLogsFilterBar<TData>(
   const hasExpandedFilters =
     !!filters.token ||
     !!filters.username ||
+    !!filters.department ||
     !!filters.channel ||
     !!filters.requestId ||
     !!filters.upstreamRequestId
@@ -276,6 +299,7 @@ export function CommonLogsFilterBar<TData>(
   const expandedFilterCount = [
     filters.token,
     isAdmin ? filters.username : undefined,
+    isAdmin ? filters.department : undefined,
     isAdmin ? filters.channel : undefined,
     filters.requestId,
     filters.upstreamRequestId,
@@ -452,6 +476,19 @@ export function CommonLogsFilterBar<TData>(
             value={filters.username || ''}
             onChange={(e) => handleChange('username', e.target.value)}
             onKeyDown={handleKeyDown}
+          />
+        </LogsFilterField>
+      )}
+      {isAdmin && (
+        <LogsFilterField>
+          <Combobox
+            options={departmentOptions}
+            aria-label={t('Department')}
+            emptyText={t('No departments found')}
+            placeholder={t('Department')}
+            className='h-8 min-w-0 text-sm leading-5'
+            value={filters.department || ''}
+            onValueChange={(value) => handleChange('department', value ?? '')}
           />
         </LogsFilterField>
       )}

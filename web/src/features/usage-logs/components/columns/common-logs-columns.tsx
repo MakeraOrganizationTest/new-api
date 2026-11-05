@@ -35,6 +35,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useDepartments } from '@/features/departments/hooks/use-departments'
+import { formatDepartmentSnapshot } from '@/features/departments/lib/tree'
 import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import {
   normalizeTierLabel,
@@ -608,6 +610,29 @@ export function useCommonLogsColumns(
                   </Tooltip>
                 </TooltipProvider>
               </button>
+            )
+          },
+        },
+        {
+          id: 'department',
+          header: t('Department'),
+          accessorFn: (row) => row.department_id,
+          cell: function DepartmentCell({ row }) {
+            const { index } = useDepartments({ includeDeleted: true })
+            const label = formatDepartmentSnapshot(
+              index,
+              row.original.department_id ?? 0,
+              row.original.top_department_id ?? 0,
+              t('(Deleted)'),
+              row.original.mid_department_id ?? 0
+            )
+            if (!label) {
+              return <span className='text-muted-foreground text-sm'>—</span>
+            }
+            return (
+              <span className='text-muted-foreground block max-w-[160px] truncate text-sm'>
+                {label}
+              </span>
             )
           },
         }

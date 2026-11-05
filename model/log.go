@@ -76,6 +76,10 @@ type Log struct {
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
 	Other             string `json:"other"`
+	// Department snapshot at the time of the request; administrator-only.
+	DepartmentId    int `json:"department_id,omitempty" gorm:"default:0"`
+	TopDepartmentId int `json:"top_department_id,omitempty" gorm:"default:0"`
+	MidDepartmentId int `json:"mid_department_id,omitempty" gorm:"default:0"`
 }
 
 // don't use iota, avoid change log type value
@@ -114,6 +118,9 @@ func assignDisplayLogIds(logs []*Log, startIdx int) {
 func formatUserLogs(logs []*Log, startIdx int) {
 	for i := range logs {
 		logs[i].ChannelName = ""
+		logs[i].DepartmentId = 0
+		logs[i].TopDepartmentId = 0
+		logs[i].MidDepartmentId = 0
 		logs[i].Other = formatLogOtherJSON(logs[i].Other, logOtherVisibilityUser)
 	}
 	assignDisplayLogIds(logs, startIdx)
@@ -315,6 +322,8 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
 	}
+	department := GetUserDepartmentSnapshot(userId)
+	log.DepartmentId, log.TopDepartmentId, log.MidDepartmentId = department.DepartmentId, department.TopDepartmentId, department.MidDepartmentId
 	err := createLog(log)
 	if err != nil {
 		logger.LogError(c, common.LogText("failed to record log: %s", err.Error()))
@@ -345,6 +354,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
+	department := GetUserDepartmentSnapshot(userId)
 	other := params.Other
 	content := other.setContent(params.Content)
 	otherStr := other.JSONString()
@@ -380,6 +390,9 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		RequestId:         requestId,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
+		DepartmentId:      department.DepartmentId,
+		TopDepartmentId:   department.TopDepartmentId,
+		MidDepartmentId:   department.MidDepartmentId,
 	}
 	err := createLog(log)
 	if err != nil {
@@ -406,6 +419,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			TokenID:             params.TokenId,
 			ChannelID:           params.ChannelId,
 			NodeName:            common.NodeName,
+			Department:          department,
 		})
 	}
 }
@@ -435,6 +449,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		}
 	}
 	createdAt := common.GetTimestamp()
+	department := GetUserDepartmentSnapshot(params.UserId)
 	other := params.Other
 	log := &Log{
 		UserId:    params.UserId,
@@ -449,6 +464,10 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		TokenId:   params.TokenId,
 		Group:     params.Group,
 		Other:     other.JSONString(),
+
+		DepartmentId:    department.DepartmentId,
+		TopDepartmentId: department.TopDepartmentId,
+		MidDepartmentId: department.MidDepartmentId,
 	}
 	err := createLog(log)
 	if err != nil {
@@ -469,6 +488,8 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 			TokenID:   params.TokenId,
 			ChannelID: params.ChannelId,
 			NodeName:  nodeName,
+
+			Department: department,
 		})
 	}
 }
@@ -486,6 +507,9 @@ type LogFilter struct {
 	Group             string
 	RequestId         string
 	UpstreamRequestId string
+	// DepartmentColumn and DepartmentValue come from ResolveDepartmentFilter.
+	DepartmentColumn string
+	DepartmentValue  int
 }
 
 func (f LogFilter) apply(tx *gorm.DB) (*gorm.DB, error) {
@@ -519,6 +543,12 @@ func (f LogFilter) apply(tx *gorm.DB) (*gorm.DB, error) {
 	}
 	if f.Group != "" {
 		tx = tx.Where("logs."+logGroupCol+" = ?", f.Group)
+	}
+	if condition, args, ok := departmentCondition("logs.", f.DepartmentColumn, f.DepartmentValue); ok {
+		// Only request logs carry a department; top-up, system and other
+		// account logs would otherwise all look unassigned.
+		tx = tx.Where(condition, args...).
+			Where("logs.type IN ?", []int{LogTypeConsume, LogTypeError, LogTypeRefund})
 	}
 	return tx, nil
 }
@@ -654,6 +684,9 @@ func StreamUserLogs(ctx context.Context, userId int, filter LogFilter, fn func(*
 		count++
 		log.Id = count
 		log.ChannelName = ""
+		log.DepartmentId = 0
+		log.TopDepartmentId = 0
+		log.MidDepartmentId = 0
 		log.Other = formatLogOtherJSON(log.Other, logOtherVisibilityUser)
 		return fn(log)
 	})
@@ -686,7 +719,7 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, departmentColumn string, departmentValue int) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
 
 	// 为rpm和tpm创建单独的查询
@@ -721,6 +754,10 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	if group != "" {
 		tx = tx.Where(logGroupCol+" = ?", group)
 		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
+	}
+	if condition, args, ok := departmentCondition("", departmentColumn, departmentValue); ok {
+		tx = tx.Where(condition, args...)
+		rpmTpmQuery = rpmTpmQuery.Where(condition, args...)
 	}
 
 	tx = tx.Where("type = ?", LogTypeConsume)

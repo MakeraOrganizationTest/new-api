@@ -28,6 +28,9 @@ import {
   DataTablePage,
   useDataTable,
 } from '@/components/data-table'
+import { useDepartments } from '@/features/departments/hooks/use-departments'
+import { getDepartmentOptions } from '@/features/departments/lib/tree'
+import { DEPARTMENT_UNASSIGNED } from '@/features/departments/types'
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
@@ -86,6 +89,7 @@ export function UsersTable() {
       { columnId: 'status', searchKey: 'status', type: 'array' },
       { columnId: 'role', searchKey: 'role', type: 'array' },
       { columnId: 'group', searchKey: 'group', type: 'array' },
+      { columnId: 'department', searchKey: 'department', type: 'array' },
     ],
   })
   const statusFilter =
@@ -100,6 +104,22 @@ export function UsersTable() {
     (columnFilters.find((filter) => filter.id === 'group')?.value as
       | string[]
       | undefined) ?? []
+
+  const departmentFilter =
+    (columnFilters.find((filter) => filter.id === 'department')?.value as
+      | string[]
+      | undefined) ?? []
+  const { departments } = useDepartments()
+  const departmentFilterOptions = useMemo(
+    () => [
+      { label: t('Unassigned'), value: String(DEPARTMENT_UNASSIGNED) },
+      ...getDepartmentOptions(departments).map((option) => ({
+        label: option.label,
+        value: option.value,
+      })),
+    ],
+    [departments, t]
+  )
 
   const { data: groupsData } = useQuery({
     queryKey: ['groups'],
@@ -139,6 +159,7 @@ export function UsersTable() {
       statusFilter,
       roleFilter,
       groupFilter,
+      departmentFilter,
       sortParams,
       refreshTrigger,
     ],
@@ -147,7 +168,8 @@ export function UsersTable() {
       const hasColumnFilter =
         statusFilter.length > 0 ||
         roleFilter.length > 0 ||
-        groupFilter.length > 0
+        groupFilter.length > 0 ||
+        departmentFilter.length > 0
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
@@ -162,6 +184,7 @@ export function UsersTable() {
               status: statusFilter[0] ?? '',
               role: roleFilter[0] ?? '',
               group: groupFilter[0] ?? '',
+              department_id: departmentFilter[0] ?? '',
             })
           : await getUsers(params)
 
@@ -249,6 +272,12 @@ export function UsersTable() {
               label: group,
               value: group,
             })),
+            singleSelect: true,
+          },
+          {
+            columnId: 'department',
+            title: t('Department'),
+            options: departmentFilterOptions,
             singleSelect: true,
           },
         ],

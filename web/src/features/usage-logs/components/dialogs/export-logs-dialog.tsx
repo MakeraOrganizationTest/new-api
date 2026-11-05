@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
 import { useRef, useState } from 'react'
@@ -24,11 +25,14 @@ import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
+import { fetchDepartmentIndex } from '@/features/departments/hooks/use-departments'
+import { formatDepartmentSnapshot } from '@/features/departments/lib/tree'
 import { useStatus } from '@/hooks/use-status'
 import dayjs from '@/lib/dayjs'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import { exportLogs } from '../../api'
+import type { UsageLog } from '../../data/schema'
 import {
   downloadCsv,
   getLogCsvHeader,
@@ -52,6 +56,7 @@ export function ExportLogsDialog() {
   const { t } = useTranslation()
   const searchParams = route.useSearch()
   const { canManageScope, isAdminView } = useLogsViewScope()
+  const queryClient = useQueryClient()
   const { status } = useStatus()
   const [open, setOpen] = useState(false)
   const [range, setRange] = useState<{ start?: Date; end?: Date }>({})
@@ -98,7 +103,7 @@ export function ExportLogsDialog() {
     if (!range.start || !range.end) return
     const controller = new AbortController()
     abortRef.current = controller
-    const lines = [toCsvLine(getLogCsvHeader(isAdminView, t))]
+    const exported: UsageLog[] = []
     setExportedCount(0)
     try {
       const count = await exportLogs(
@@ -118,11 +123,36 @@ export function ExportLogsDialog() {
         {
           signal: controller.signal,
           onLog: (log) => {
-            lines.push(toCsvLine(getLogCsvRow(log, isAdminView, t)))
-            if (lines.length % 500 === 0) setExportedCount(lines.length - 1)
+            exported.push(log)
+            if (exported.length % 500 === 0) setExportedCount(exported.length)
           },
         }
       )
+      // Department names are loaded only when an exported log has one.
+      const departmentIndex =
+        isAdminView && exported.some((log) => log.department_id)
+          ? await fetchDepartmentIndex(queryClient)
+          : new Map()
+      const lines = [toCsvLine(getLogCsvHeader(isAdminView, t))]
+      for (const log of exported) {
+        lines.push(
+          toCsvLine(
+            getLogCsvRow(
+              log,
+              isAdminView,
+              t,
+              (row) =>
+                formatDepartmentSnapshot(
+                  departmentIndex,
+                  row.department_id ?? 0,
+                  row.top_department_id ?? 0,
+                  t('(Deleted)'),
+                  row.mid_department_id ?? 0
+                ) ?? ''
+            )
+          )
+        )
+      }
       downloadCsv(
         `usage-logs-${dayjs(range.start).format('YYYYMMDD')}-${dayjs(range.end).format('YYYYMMDD')}.csv`,
         lines

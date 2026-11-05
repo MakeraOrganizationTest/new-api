@@ -32,6 +32,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useDepartments } from '@/features/departments/hooks/use-departments'
+import { formatDepartmentPath } from '@/features/departments/lib/tree'
 import { getCurrencyDisplay } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
 import { useSystemConfigStore } from '@/stores/system-config-store'
@@ -214,6 +216,30 @@ export function useUsersColumns(): ColumnDef<User>[] {
         },
         size: 140,
         meta: { mobileOrder: 30 },
+      },
+      {
+        id: 'department',
+        accessorKey: 'department_id',
+        header: t('Department'),
+        cell: function DepartmentCell({ row }) {
+          const { index: departmentIndex } = useDepartments()
+          const departmentId = row.original.department_id ?? 0
+          const label =
+            departmentId === 0
+              ? null
+              : formatDepartmentPath(departmentIndex, departmentId)
+          if (!label) {
+            return (
+              <span className='text-muted-foreground text-sm'>
+                {t('Unassigned')}
+              </span>
+            )
+          }
+          return <LongText className='text-sm'>{label}</LongText>
+        },
+        enableSorting: false,
+        size: 160,
+        meta: { mobileOrder: 35 },
       },
       {
         accessorKey: 'role',

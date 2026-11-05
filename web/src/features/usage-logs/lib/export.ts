@@ -36,7 +36,7 @@ export function getLogCsvHeader(isAdmin: boolean, t: Translate): string[] {
   return [
     t('Time'),
     t('Type'),
-    ...(isAdmin ? [t('User')] : []),
+    ...(isAdmin ? [t('User'), t('Department')] : []),
     t('Token'),
     t('Group'),
     t('Model'),
@@ -58,7 +58,8 @@ export function getLogCsvHeader(isAdmin: boolean, t: Translate): string[] {
 export function getLogCsvRow(
   log: UsageLog,
   isAdmin: boolean,
-  t: Translate
+  t: Translate,
+  departmentLabel?: (log: UsageLog) => string
 ): string[] {
   const other = parseLogOther(log.other ?? '')
   const usage = isDisplayableLogType(log.type)
@@ -76,7 +77,7 @@ export function getLogCsvRow(
   return [
     formatTimestampToDate(log.created_at),
     t(getLogTypeConfig(log.type).label),
-    ...(isAdmin ? [log.username ?? ''] : []),
+    ...(isAdmin ? [log.username ?? '', departmentLabel?.(log) ?? ''] : []),
     logTokenName(log, t),
     log.group ?? '',
     log.model_name ?? '',

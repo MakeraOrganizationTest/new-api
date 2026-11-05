@@ -120,6 +120,12 @@ func main() {
 	// 数据看板
 	go model.UpdateQuotaData()
 
+	// 部门归属缓存：用量记录时读取，多节点按同步频率刷新
+	if err := model.ReloadDepartmentCache(); err != nil {
+		common.SysError(common.LogText("failed to reload department cache: %s", err.Error()))
+	}
+	go model.SyncDepartmentCache(common.SyncFrequency)
+
 	if os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
 		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY"))
 		if err != nil {

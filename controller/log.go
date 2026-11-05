@@ -32,6 +32,13 @@ func logFilterFromQuery(c *gin.Context, admin bool) model.LogFilter {
 	if admin {
 		filter.Username = c.Query("username")
 		filter.Channel, _ = strconv.Atoi(c.Query("channel"))
+		departmentId, _ := strconv.Atoi(c.Query("department_id"))
+		column, value, err := model.ResolveDepartmentFilter(departmentId)
+		if err != nil {
+			// An unknown department matches nothing rather than everything.
+			column, value = "department_id", model.DepartmentUnassigned
+		}
+		filter.DepartmentColumn, filter.DepartmentValue = column, value
 	}
 	return filter
 }
@@ -209,7 +216,13 @@ func GetLogsStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	departmentId, _ := strconv.Atoi(c.Query("department_id"))
+	departmentColumn, departmentValue, err := model.ResolveDepartmentFilter(departmentId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	stat, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, departmentColumn, departmentValue)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -243,7 +256,7 @@ func GetLogsSelfStat(c *gin.Context) {
 	modelName := c.Query("model_name")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	group := c.Query("group")
-	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	quotaNum, err := model.SumUsedQuota(logType, startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, "", 0)
 	if err != nil {
 		common.ApiError(c, err)
 		return

@@ -34,7 +34,9 @@ import type {
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 
 function isTimeGranularity(value: unknown): value is TimeGranularity {
-  return value === 'hour' || value === 'day' || value === 'week'
+  return (
+    value === 'hour' || value === 'day' || value === 'week' || value === 'month'
+  )
 }
 
 function getLegacySavedGranularity(): TimeGranularity {

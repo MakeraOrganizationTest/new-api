@@ -366,9 +366,10 @@ func SearchUsers(c *gin.Context) {
 			status = &parsed
 		}
 	}
+	departmentId, _ := strconv.Atoi(c.Query("department_id"))
 	pageInfo := common.GetPageQuery(c)
 	sortOptions := model.NewUserSortOptions(c.Query("sort_by"), c.Query("sort_order"))
-	users, total, err := model.SearchUsers(keyword, group, role, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), sortOptions)
+	users, total, err := model.SearchUsers(keyword, group, departmentId, role, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), sortOptions)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -1029,12 +1030,19 @@ func CreateUser(c *gin.Context) {
 		}
 		auditParams["verification_method"] = authorization.Method
 	}
+	if user.DepartmentId != 0 {
+		if _, err := model.GetDepartmentById(user.DepartmentId); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	// Even for admin users, we cannot fully trust them!
 	cleanUser := model.User{
-		Username:    user.Username,
-		Password:    user.Password,
-		DisplayName: user.DisplayName,
-		Role:        user.Role, // 保持管理员设置的角色
+		Username:     user.Username,
+		Password:     user.Password,
+		DisplayName:  user.DisplayName,
+		Role:         user.Role, // 保持管理员设置的角色
+		DepartmentId: user.DepartmentId,
 	}
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
@@ -1055,6 +1063,11 @@ func CreateUser(c *gin.Context) {
 		}
 	}
 	cleanUser.FinishInsert(0)
+	if cleanUser.DepartmentId != 0 {
+		if err := model.ReloadDepartmentCache(); err != nil {
+			common.SysError(common.LogText("failed to reload department cache: %s", err.Error()))
+		}
+	}
 
 	auditParams["username"] = cleanUser.Username
 	recordManageAuditFor(c, cleanUser.Id, "user.create", auditParams)

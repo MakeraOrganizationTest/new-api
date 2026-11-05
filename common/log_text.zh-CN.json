@@ -556,6 +556,7 @@
   "failed to refund Midjourney user quota, task %s: %s": "退还 Midjourney 用户额度失败 task %s: %s",
   "failed to refund the funding source, task %s: %s": "退还资金来源失败 task %s: %s",
   "failed to reload authz policy: %s": "重新加载授权策略失败: %s",
+  "failed to reload department cache: %s": "重新加载部门缓存失败: %s",
   "failed to reset codex usage": "重置 Codex 用量失败",
   "failed to save backup codes: %s": "保存备用码失败: %s",
   "failed to search tokens: %s": "搜索令牌失败: %s",

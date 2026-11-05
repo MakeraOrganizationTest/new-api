@@ -25,6 +25,7 @@ import type {
   ProcessedUserChartData,
 } from '@/features/dashboard/types'
 import { getCurrencyDisplay } from '@/lib/currency'
+import dayjs from '@/lib/dayjs'
 import { formatChartTime, type TimeGranularity } from '@/lib/time'
 
 type TFunction = (key: string) => string
@@ -287,6 +288,16 @@ export function processChartData(
     const lastTime = Math.max(
       ...data.map((item) => Number(item.created_at) || 0)
     )
+    if (timeGranularity === 'month') {
+      return Array.from({ length: MAX_TREND_POINTS }, (_, i) =>
+        formatChartTime(
+          dayjs(lastTime * 1000)
+            .subtract(MAX_TREND_POINTS - 1 - i, 'month')
+            .unix(),
+          timeGranularity
+        )
+      )
+    }
     let intervalSec = 3600
     if (timeGranularity === 'week') {
       intervalSec = 604800

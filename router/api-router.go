@@ -164,6 +164,7 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.POST("/", controller.CreateUser)
 				adminRoute.POST("/manage", controller.ManageUser)
 				adminRoute.PUT("/", controller.UpdateUser)
+				adminRoute.PUT("/department", controller.SetUsersDepartment)
 				adminRoute.DELETE("/:id", controller.DeleteUser)
 				adminRoute.DELETE("/:id/reset_passkey", controller.AdminResetPasskey)
 
@@ -306,6 +307,15 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		departmentRoute := apiRouter.Group("/department")
+		departmentRoute.Use(middleware.AdminAuth())
+		{
+			departmentRoute.GET("/", controller.GetDepartments)
+			departmentRoute.POST("/", controller.CreateDepartment)
+			departmentRoute.PUT("/", controller.UpdateDepartment)
+			departmentRoute.DELETE("/:id", controller.DeleteDepartment)
+		}
+
 		redemptionRoute := apiRouter.Group("/redemption")
 		redemptionRoute.Use(middleware.AdminAuth())
 		{
@@ -354,6 +364,8 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
 		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
+		dataRoute.GET("/report", middleware.AdminAuth(), controller.GetQuotaReport)
+		dataRoute.GET("/report/self", middleware.UserAuth(), controller.GetSelfQuotaReport)
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
 		{

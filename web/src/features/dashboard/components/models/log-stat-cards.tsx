@@ -21,19 +21,23 @@ import { useTranslation } from 'react-i18next'
 
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getUserQuotaDates } from '@/features/dashboard/api'
+import { getQuotaReport } from '@/features/dashboard/api'
 import { useModelStatCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import {
-  buildQueryParams,
   calculateDashboardStats,
   getDefaultDays,
 } from '@/features/dashboard/lib'
+import {
+  fitGranularity,
+  getTimezoneOffsetSeconds,
+} from '@/features/dashboard/lib/report-range'
 import type {
   QuotaDataItem,
   DashboardFilters,
 } from '@/features/dashboard/types'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatCompactNumber, formatNumber, formatQuota } from '@/lib/format'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
@@ -89,10 +93,26 @@ export function LogStatCards(props: LogStatCardsProps) {
     const timeDiff = (timeRange.end_timestamp - timeRange.start_timestamp) / 60
     setTimeRangeMinutes(timeDiff)
 
-    void getUserQuotaDates(buildQueryParams(timeRange, filters), isAdmin)
+    const range = {
+      start: new Date(timeRange.start_timestamp * 1000),
+      end: new Date(timeRange.end_timestamp * 1000),
+    }
+    void getQuotaReport(
+      {
+        ...timeRange,
+        dimensions: ['model_name'],
+        granularity: fitGranularity(range, filters?.time_granularity),
+        tz_offset: getTimezoneOffsetSeconds(range.start),
+        ...(isAdmin && filters?.username ? { username: filters.username } : {}),
+      },
+      isAdmin,
+      abortController.signal
+    )
       .then((res) => {
         if (abortController.signal.aborted) return
-        const data = res?.data || []
+        const data: QuotaDataItem[] = (
+          requireServerSuccess(res)?.data ?? []
+        ).map((row) => ({ ...row, created_at: row.created_at ?? 0 }))
         setStats(calculateDashboardStats(data))
         onDataUpdate?.(data, false)
       })

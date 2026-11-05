@@ -45,6 +45,10 @@ export const usageLogSchema = z.object({
   other: z.string().default(''),
   request_id: z.string().default(''),
   upstream_request_id: z.string().default(''),
+  // Department at the time of the request; administrators only.
+  department_id: z.number().optional(),
+  top_department_id: z.number().optional(),
+  mid_department_id: z.number().optional(),
 })
 
 export type UsageLog = z.infer<typeof usageLogSchema>

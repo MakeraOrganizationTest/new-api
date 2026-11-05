@@ -98,6 +98,7 @@ type User struct {
 	UsedQuota            int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
 	RequestCount         int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
 	Group                string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
+	DepartmentId         int                        `json:"department_id" gorm:"index;default:0"`
 	AffCode              string                     `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
 	AffCount             int                        `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
 	AffQuota             int                        `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
@@ -435,7 +436,7 @@ func GetAllUsers(pageInfo *common.PageInfo, sortOptions ...UserSortOptions) (use
 	return users, total, nil
 }
 
-func SearchUsers(keyword string, group string, role *int, status *int, startIdx int, num int, sortOptions ...UserSortOptions) ([]*User, int64, error) {
+func SearchUsers(keyword string, group string, departmentId int, role *int, status *int, startIdx int, num int, sortOptions ...UserSortOptions) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -469,6 +470,18 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 	query = query.Where("("+likeCondition+")", likeArgs...)
 	if group != "" {
 		query = query.Where(commonGroupCol+" = ?", group)
+	}
+	switch {
+	case departmentId == DepartmentUnassigned:
+		query = query.Where("department_id = 0")
+	case departmentId > 0:
+		// A department also lists the members of every department below it.
+		parents, err := departmentParents(tx)
+		if err != nil {
+			tx.Rollback()
+			return nil, 0, err
+		}
+		query = query.Where("department_id IN ?", descendantDepartmentIds(parents, departmentId))
 	}
 	if role != nil {
 		query = query.Where("role = ?", *role)
@@ -841,6 +854,7 @@ func (user *User) UpdateWithTx(tx *gorm.DB, updatePassword bool) error {
 		"aff_quota",
 		"aff_history",
 		"auth_version",
+		"department_id",
 	).Updates(newUser).Error; err != nil {
 		return err
 	}

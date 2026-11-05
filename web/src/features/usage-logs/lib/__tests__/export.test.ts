@@ -59,6 +59,7 @@ async function chineseTranslator() {
         translation: {
           Time: '时间',
           User: '用户',
+          Department: '部门',
           Channel: '渠道',
           Consume: '消费',
           'Top-up': '充值',
@@ -91,6 +92,16 @@ describe('usage log CSV export', () => {
     expect(row).toHaveLength(header.length)
     expect(row[header.indexOf('用户')]).toBe('alice')
     expect(row[header.indexOf('渠道')]).toBe('#162 azure')
+  })
+
+  test('administrator row puts the department label under the department header', async () => {
+    const t = await chineseTranslator()
+
+    const header = getLogCsvHeader(true, t)
+    const row = getLogCsvRow(consumeLog, true, t, () => 'R&D / Frontend')
+
+    expect(row).toHaveLength(header.length)
+    expect(row[header.indexOf('部门')]).toBe('R&D / Frontend')
   })
 
   test('consume log row matches the log table values', async () => {
