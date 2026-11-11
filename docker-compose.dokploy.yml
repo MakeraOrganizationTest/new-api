@@ -74,6 +74,9 @@ services:
       POSTGRES_DB: new-api
     volumes:
       - pg_data:/var/lib/postgresql/data
+    # Temporarily exposed for direct admin access; remove once maintenance is done.
+    ports:
+      - "5432:5432"
     networks:
       - internal
     healthcheck:
