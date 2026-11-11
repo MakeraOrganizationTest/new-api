@@ -118,6 +118,10 @@ func FindQuotaGrantTargets(scope string, departmentIds, userIds []int) ([]QuotaG
 		}
 		ids := make([]int, 0, len(departmentIds))
 		for _, departmentId := range departmentIds {
+			// Id 0 is "no department"; its descendants would be every department.
+			if departmentId <= 0 {
+				return nil, ErrInvalidUserQuotaAdjustment
+			}
 			ids = append(ids, descendantDepartmentIds(parents, departmentId)...)
 		}
 		query = query.Where("status = ? AND department_id IN ?", common.UserStatusEnabled, ids)

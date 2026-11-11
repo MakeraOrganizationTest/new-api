@@ -118,6 +118,31 @@ describe('BatchQuotaDialog', () => {
     })
   })
 
+  test('double clicking confirm sends a single grant request', async () => {
+    let resolvePost: (value: unknown) => void = () => undefined
+    const post = vi.spyOn(api, 'post').mockReturnValue(
+      new Promise((resolve) => {
+        resolvePost = resolve
+      })
+    )
+    const user = userEvent.setup()
+    const { onSuccess } = renderDialog({ selectedUsers })
+
+    await user.type(screen.getByLabelText(/Amount/), '5')
+    await user.click(screen.getByRole('button', { name: 'Grant' }))
+    const confirm = within(await screen.findByRole('alertdialog'))
+    await user.dblClick(confirm.getByRole('button', { name: 'Grant' }))
+    resolvePost({
+      data: {
+        success: true,
+        data: { total: 2, succeeded: 2, skipped: 0, failed: [] },
+      },
+    })
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce())
+    expect(post).toHaveBeenCalledOnce()
+  })
+
   test('department scope stays disabled until a department is chosen', async () => {
     const user = userEvent.setup()
     renderDialog({})

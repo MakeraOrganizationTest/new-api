@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation } from '@tanstack/react-query'
-import { useId, useMemo, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -98,6 +98,10 @@ export function BatchQuotaDialog(props: BatchQuotaDialogProps) {
     setConfirmOpen(false)
   }
 
+  // Grants move money, so a repeated confirm must never send a second request,
+  // even if the pending state has not disabled the button yet.
+  const submittingRef = useRef(false)
+
   const grant = useMutation({
     mutationFn: async (payload: BatchQuotaGrantPayload) => {
       const result = await batchAdjustUserQuota(payload)
@@ -121,6 +125,9 @@ export function BatchQuotaDialog(props: BatchQuotaDialogProps) {
       props.onOpenChange(false)
       props.onSuccess()
     },
+    onSettled: () => {
+      submittingRef.current = false
+    },
     onError: (error) => {
       setConfirmOpen(false)
       handleServerError(error, t('Failed to grant quota'))
@@ -128,6 +135,8 @@ export function BatchQuotaDialog(props: BatchQuotaDialogProps) {
   })
 
   const submit = () => {
+    if (submittingRef.current) return
+    submittingRef.current = true
     const payload: BatchQuotaGrantPayload = {
       scope: fixedUsers !== undefined ? 'users' : scope,
       mode,

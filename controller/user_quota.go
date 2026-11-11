@@ -115,6 +115,10 @@ func BatchAdjustUserQuota(c *gin.Context) {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
+	if len(req.UserIds) > maxDepartmentBatchUsers {
+		common.ApiErrorT(c, "Too many users selected")
+		return
+	}
 	if len([]rune(req.Remark)) > maxQuotaGrantRemarkLength {
 		common.ApiErrorT(c, "Remark is too long")
 		return

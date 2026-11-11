@@ -826,8 +826,10 @@ func TestBatchAdjustUserQuotaRejectsInvalidRequests(t *testing.T) {
 		{"subtract_mode", `{"scope":"all","mode":"subtract","value":10}`},
 		{"unknown_scope", `{"scope":"group","mode":"add","value":10}`},
 		{"departments_empty", `{"scope":"departments","mode":"add","value":10}`},
+		{"department_zero", `{"scope":"departments","department_ids":[0],"mode":"add","value":10}`},
 		{"users_empty", `{"scope":"users","mode":"add","value":10}`},
 		{"no_match", `{"scope":"users","user_ids":[404],"mode":"add","value":10}`},
+		{"too_many_users", `{"scope":"users","user_ids":[` + strings.Repeat("1,", maxDepartmentBatchUsers) + `1],"mode":"add","value":10}`},
 		{"remark_too_long", `{"scope":"all","mode":"add","value":10,"remark":"` + strings.Repeat("备", 65) + `"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
