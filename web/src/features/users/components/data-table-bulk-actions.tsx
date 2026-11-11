@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Table } from '@tanstack/react-table'
-import { Building2 } from 'lucide-react'
+import { Building2, Coins } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -42,6 +42,7 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { createServerError } from '@/lib/server-error-message'
 
 import type { User } from '../types'
+import { BatchQuotaDialog } from './batch-quota-dialog'
 import { useUsers } from './users-provider'
 
 interface DataTableBulkActionsProps {
@@ -54,6 +55,7 @@ export function DataTableBulkActions(props: DataTableBulkActionsProps) {
   const queryClient = useQueryClient()
   const { triggerRefresh } = useUsers()
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
   const [departmentId, setDepartmentId] = useState(0)
   const { departments } = useDepartments()
   const selectedUsers = props.table
@@ -106,6 +108,22 @@ export function DataTableBulkActions(props: DataTableBulkActionsProps) {
           </TooltipTrigger>
           <TooltipContent>{t('Set department')}</TooltipContent>
         </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='outline'
+                size='icon'
+                className='size-8'
+                aria-label={t('Batch grant quota')}
+                onClick={() => setQuotaDialogOpen(true)}
+              />
+            }
+          >
+            <Coins aria-hidden='true' />
+          </TooltipTrigger>
+          <TooltipContent>{t('Batch grant quota')}</TooltipContent>
+        </Tooltip>
       </BulkActionsToolbar>
       <Dialog
         open={dialogOpen}
@@ -151,6 +169,15 @@ export function DataTableBulkActions(props: DataTableBulkActionsProps) {
           emptyLabel={t('Unassigned')}
         />
       </Dialog>
+      <BatchQuotaDialog
+        open={quotaDialogOpen}
+        onOpenChange={setQuotaDialogOpen}
+        selectedUsers={selectedUsers}
+        onSuccess={() => {
+          props.table.resetRowSelection()
+          triggerRefresh()
+        }}
+      />
     </>
   )
 }

@@ -124,5 +124,10 @@ export function buildQuotaAuditOperation(
       value: reason || t('Not recorded'),
     })
   }
+  const remark = typeof params.remark === 'string' ? params.remark.trim() : ''
+  if (remark) {
+    description = `${description} · ${remark}`
+    fields.push({ label: t('Remark'), value: remark })
+  }
   return { headline, summary, identifier, description, fields }
 }

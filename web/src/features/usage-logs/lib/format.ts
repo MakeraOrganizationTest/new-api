@@ -24,6 +24,7 @@ import {
   splitBillingExprAndRequestRules,
   type ParsedTier,
 } from '@/features/pricing/lib/billing-expr'
+import { formatLogQuota } from '@/lib/format'
 import { translateServerText } from '@/lib/server-error-message'
 
 import type { UsageLog } from '../data/schema'
@@ -487,6 +488,8 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'user.quota_add': 'Increased user quota by {{quota}}',
   'user.quota_subtract': 'Decreased user quota by {{quota}}',
   'user.quota_override': 'Overrode user quota from {{from}} to {{to}}',
+  'user.quota_batch':
+    'Batch quota grant: {{succeeded}} succeeded, {{skipped}} skipped, {{failed}} failed',
   'user.binding_clear': 'Cleared {{bindingType}} binding for user {{username}}',
   'user.2fa_disable': 'Force-disabled two-factor authentication for the user',
   'user.passkey_register': 'Registered a passkey',
@@ -631,6 +634,19 @@ export function renderAuditContent(
   }
   const template = AUDIT_TEMPLATES[op.action]
   if (!template) return null
+  if (op.action === 'user.quota_batch') {
+    const params = op.params ?? {}
+    const quota =
+      typeof params.quota === 'number' ? formatLogQuota(params.quota) : ''
+    const operation =
+      params.mode === 'override'
+        ? t('Set each user to {{quota}}', { quota })
+        : t('Add {{quota}} to each user', { quota })
+    const remark = typeof params.remark === 'string' ? params.remark : ''
+    return [operation, t(template, { ...params }), remark]
+      .filter(Boolean)
+      .join(' · ')
+  }
   const quotaOperation = buildQuotaAuditOperation(
     op.action,
     op.params ?? {},

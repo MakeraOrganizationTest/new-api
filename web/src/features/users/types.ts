@@ -142,6 +142,26 @@ export type ManageUserAction =
 
 export type QuotaAdjustMode = 'add' | 'subtract' | 'override'
 
+export type QuotaGrantScope = 'all' | 'departments' | 'users'
+
+export type QuotaGrantMode = 'add' | 'override'
+
+export interface BatchQuotaGrantPayload {
+  scope: QuotaGrantScope
+  department_ids?: number[]
+  user_ids?: number[]
+  mode: QuotaGrantMode
+  value: number
+  remark?: string
+}
+
+export interface BatchQuotaGrantResult {
+  total: number
+  succeeded: number
+  skipped: number
+  failed: { user_id: number; username: string }[]
+}
+
 export interface ManageUserQuotaPayload {
   id: number
   action: 'add_quota'

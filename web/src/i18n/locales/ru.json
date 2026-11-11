@@ -7519,6 +7519,27 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "By clicking sign in, you agree to our": "Нажимая «Войти», вы соглашаетесь с нашими",
-    "By creating an account, you agree to our": "Создавая аккаунт, вы соглашаетесь с нашими"
+    "By creating an account, you agree to our": "Создавая аккаунт, вы соглашаетесь с нашими",
+    "Granted quota to {{succeeded}} users, {{skipped}} skipped, {{failed}} failed": "Квота начислена {{succeeded}} пользователям, пропущено: {{skipped}}, ошибок: {{failed}}",
+    "Failed to grant quota": "Не удалось начислить квоту",
+    "All enabled users": "Все активные пользователи",
+    "{{count}} selected users": "Выбрано пользователей: {{count}}",
+    "Enabled members of {{count}} departments": "Активные сотрудники отделов: {{count}}",
+    "Add {{quota}} to each user": "Добавить {{quota}} каждому пользователю",
+    "Set each user to {{quota}}": "Установить баланс каждого пользователя: {{quota}}",
+    "Batch grant quota": "Массовое начисление квоты",
+    "Each user gets a top-up log entry, the same as a single manual adjustment.": "Для каждого пользователя создаётся запись о пополнении, как при ручной корректировке.",
+    "Grant": "Начислить",
+    "Recipients": "Получатели",
+    "By department": "По отделам",
+    "Select departments": "Выберите отделы",
+    "Sub-departments are included. Disabled users are skipped.": "Подотделы включены. Отключённые пользователи пропускаются.",
+    "Add to balance": "Добавить к балансу",
+    "Set balance to": "Установить баланс",
+    "For example: December allowance": "Например: квота на декабрь",
+    "Confirm batch grant": "Подтвердите массовое начисление",
+    "Batch quota grant: {{succeeded}} succeeded, {{skipped}} skipped, {{failed}} failed": "Массовое начисление квоты: успешно {{succeeded}}, пропущено {{skipped}}, ошибок {{failed}}",
+    "Remark is too long": "Примечание слишком длинное",
+    "No users match the selected scope": "Нет пользователей в выбранной области"
   }
 }

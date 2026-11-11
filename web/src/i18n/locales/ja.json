@@ -7519,6 +7519,27 @@
     "Zhipu V4": "Zhipu V 4",
     "Zoom": "ズーム",
     "By clicking sign in, you agree to our": "サインインをクリックすると、以下に同意したことになります：",
-    "By creating an account, you agree to our": "アカウントを作成すると、以下に同意したことになります："
+    "By creating an account, you agree to our": "アカウントを作成すると、以下に同意したことになります：",
+    "Granted quota to {{succeeded}} users, {{skipped}} skipped, {{failed}} failed": "{{succeeded}} 人のユーザーにクォータを付与しました（スキップ {{skipped}} 人、失敗 {{failed}} 人）",
+    "Failed to grant quota": "クォータの付与に失敗しました",
+    "All enabled users": "有効なすべてのユーザー",
+    "{{count}} selected users": "選択した {{count}} 人のユーザー",
+    "Enabled members of {{count}} departments": "{{count}} 部門の有効なメンバー",
+    "Add {{quota}} to each user": "各ユーザーに {{quota}} を追加",
+    "Set each user to {{quota}}": "各ユーザーの残高を {{quota}} に設定",
+    "Batch grant quota": "クォータを一括付与",
+    "Each user gets a top-up log entry, the same as a single manual adjustment.": "各ユーザーに、手動調整と同じチャージログが記録されます。",
+    "Grant": "付与",
+    "Recipients": "付与対象",
+    "By department": "部門別",
+    "Select departments": "部門を選択",
+    "Sub-departments are included. Disabled users are skipped.": "下位部門を含みます。無効なユーザーはスキップされます。",
+    "Add to balance": "残高に追加",
+    "Set balance to": "残高を設定",
+    "For example: December allowance": "例：12 月分の割り当て",
+    "Confirm batch grant": "一括付与の確認",
+    "Batch quota grant: {{succeeded}} succeeded, {{skipped}} skipped, {{failed}} failed": "クォータ一括付与：成功 {{succeeded}} 人、スキップ {{skipped}} 人、失敗 {{failed}} 人",
+    "Remark is too long": "備考が長すぎます",
+    "No users match the selected scope": "選択した範囲に該当するユーザーがいません"
   }
 }

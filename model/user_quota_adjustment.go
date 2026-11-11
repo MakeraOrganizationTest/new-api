@@ -84,3 +84,54 @@ func AdjustUserQuota(userID, operatorRole int, mode string, value int) (*UserQuo
 	}
 	return &adjustment, nil
 }
+
+// Scopes a batch quota grant can target.
+const (
+	QuotaGrantScopeAll         = "all"
+	QuotaGrantScopeDepartments = "departments"
+	QuotaGrantScopeUsers       = "users"
+)
+
+// QuotaGrantTarget is a user selected by a batch quota grant.
+type QuotaGrantTarget struct {
+	Id       int
+	Username string
+	Role     int
+}
+
+// FindQuotaGrantTargets resolves a batch grant scope to users ordered by id.
+// The all-users and department scopes take enabled users only, and a
+// department includes every department below it. An explicit user list is
+// taken as given, disabled users included.
+func FindQuotaGrantTargets(scope string, departmentIds, userIds []int) ([]QuotaGrantTarget, error) {
+	query := DB.Model(&User{}).Select("id, username, role").Order("id")
+	switch scope {
+	case QuotaGrantScopeAll:
+		query = query.Where("status = ?", common.UserStatusEnabled)
+	case QuotaGrantScopeDepartments:
+		if len(departmentIds) == 0 {
+			return nil, ErrInvalidUserQuotaAdjustment
+		}
+		parents, err := departmentParents(DB)
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]int, 0, len(departmentIds))
+		for _, departmentId := range departmentIds {
+			ids = append(ids, descendantDepartmentIds(parents, departmentId)...)
+		}
+		query = query.Where("status = ? AND department_id IN ?", common.UserStatusEnabled, ids)
+	case QuotaGrantScopeUsers:
+		if len(userIds) == 0 {
+			return nil, ErrInvalidUserQuotaAdjustment
+		}
+		query = query.Where("id IN ?", userIds)
+	default:
+		return nil, ErrInvalidUserQuotaAdjustment
+	}
+	var targets []QuotaGrantTarget
+	if err := query.Scan(&targets).Error; err != nil {
+		return nil, err
+	}
+	return targets, nil
+}

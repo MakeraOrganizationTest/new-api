@@ -106,6 +106,24 @@ const cases = [
   },
   {
     action: 'user.quota_add',
+    params: {
+      target_user_id: 42,
+      target_username: 'quota-owner',
+      mode: 'add',
+      requested_quota: 500000,
+      quota: 500000,
+      from: 500000,
+      to: 1000000,
+      batch: true,
+      remark: 'December allowance',
+    },
+    english:
+      'Increase quota for user “quota-owner” (ID: 42) · Requested quota: $1 · $1 → $2 · December allowance',
+    chinese:
+      '增加用户「quota-owner」的额度（ID: 42） · 请求数额：$1 · $1 → $2 · December allowance',
+  },
+  {
+    action: 'user.quota_add',
     params: { quota: 500000 },
     english:
       'Increase user quota · Target not recorded · Requested quota: $1 · Not recorded → Not recorded',
@@ -208,6 +226,33 @@ describe('quota adjustment log localization', () => {
       }
     }
   )
+
+  test('renders the batch grant summary with its quota, counts, and remark', async () => {
+    const i18n = createInstance()
+    await i18n.init({ lng: 'en', resources: { en, zh } })
+    const other: LogOtherData = {
+      op: {
+        action: 'user.quota_batch',
+        params: {
+          scope: 'all',
+          mode: 'override',
+          quota: 500000,
+          total: 5,
+          succeeded: 3,
+          skipped: 2,
+          failed: 0,
+          remark: 'December allowance',
+        },
+      },
+    }
+    expect(renderAuditContent(other, i18n.t)).toBe(
+      'Set each user to $1 · Batch quota grant: 3 succeeded, 2 skipped, 0 failed · December allowance'
+    )
+    await i18n.changeLanguage('zh')
+    expect(renderAuditContent(other, i18n.t)).toBe(
+      '每人余额设为 $1 · 批量发放额度：成功 3 个，跳过 2 个，失败 0 个 · December allowance'
+    )
+  })
 
   test('preserves legacy formatted quota parameters and unknown-action fallback', async () => {
     const i18n = createInstance()

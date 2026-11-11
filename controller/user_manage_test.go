@@ -724,3 +724,131 @@ func TestUpdateUserSettingKeepsWhatTheRequestLeavesOut(t *testing.T) {
 		})
 	}
 }
+
+func TestBatchAdjustUserQuotaScopes(t *testing.T) {
+	for _, tc := range []struct {
+		name, body          string
+		operatorRole        int
+		wantQuota           map[int]int
+		wantTotal, wantSkip int
+	}{
+		{
+			// Enabled users only; the admin operator skips itself and the peer admin.
+			name: "all_users_add", operatorRole: common.RoleAdminUser,
+			body:      `{"scope":"all","mode":"add","value":50,"remark":"2026-12 allowance"}`,
+			wantQuota: map[int]int{1: 150, 2: 150, 3: 100, 4: 150, 5: 100},
+			wantTotal: 5, wantSkip: 2,
+		},
+		{
+			// A department includes its sub-departments but not disabled members.
+			name: "department_override", operatorRole: common.RoleRootUser,
+			body:      `{"scope":"departments","department_ids":[1],"mode":"override","value":300,"remark":"2026-12 allowance"}`,
+			wantQuota: map[int]int{1: 300, 2: 300, 3: 100, 4: 100, 5: 100},
+			wantTotal: 2,
+		},
+		{
+			// An explicit list is taken as given, disabled users included.
+			name: "user_list_add", operatorRole: common.RoleRootUser,
+			body:      `{"scope":"users","user_ids":[3,4],"mode":"add","value":50,"remark":"2026-12 allowance"}`,
+			wantQuota: map[int]int{1: 100, 2: 100, 3: 150, 4: 150, 5: 100},
+			wantTotal: 2,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupManageUserTestDB(t)
+			require.NoError(t, db.AutoMigrate(&model.Department{}))
+			require.NoError(t, db.Create(&[]model.Department{{Id: 1, Name: "R&D"}, {Id: 2, ParentId: 1, Name: "Platform"}}).Error)
+			require.NoError(t, db.Create(&[]model.User{
+				{Id: 1, Username: "dept-root", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Quota: 100, DepartmentId: 1, AffCode: "a1"},
+				{Id: 2, Username: "dept-child", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Quota: 100, DepartmentId: 2, AffCode: "a2"},
+				{Id: 3, Username: "dept-disabled", Role: common.RoleCommonUser, Status: common.UserStatusDisabled, Quota: 100, DepartmentId: 1, AffCode: "a3"},
+				{Id: 4, Username: "no-dept", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Quota: 100, AffCode: "a4"},
+				{Id: 5, Username: "peer-admin", Role: common.RoleAdminUser, Status: common.UserStatusEnabled, Quota: 100, AffCode: "a5"},
+			}).Error)
+			createQuotaTestOperator(t, db, tc.operatorRole)
+
+			gin.SetMode(gin.TestMode)
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/api/user/quota/batch", strings.NewReader(tc.body))
+			c.Set("id", 9999)
+			c.Set("role", tc.operatorRole)
+			c.Set("username", "root-operator")
+			BatchAdjustUserQuota(c)
+
+			var resp struct {
+				Success bool `json:"success"`
+				Data    struct {
+					Total, Succeeded, Skipped int
+					Failed                    []batchQuotaGrantFailure
+				} `json:"data"`
+			}
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &resp))
+			require.True(t, resp.Success, recorder.Body.String())
+			assert.Equal(t, tc.wantTotal, resp.Data.Total)
+			assert.Equal(t, tc.wantSkip, resp.Data.Skipped)
+			assert.Empty(t, resp.Data.Failed)
+			succeeded := tc.wantTotal - tc.wantSkip
+			assert.Equal(t, succeeded, resp.Data.Succeeded)
+
+			for id, want := range tc.wantQuota {
+				var user model.User
+				require.NoError(t, db.First(&user, id).Error)
+				assert.Equal(t, want, user.Quota, "user %d", id)
+			}
+
+			logs, total, err := model.GetAllLogs(model.LogFilter{Type: model.LogTypeTopup}, 0, 20)
+			require.NoError(t, err)
+			assert.EqualValues(t, succeeded, total)
+			for _, log := range logs {
+				var other model.AuditOther
+				require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+				require.NotNil(t, other.Op)
+				params, err := common.Marshal(other.Op.Params)
+				require.NoError(t, err)
+				assert.Contains(t, string(params), `"remark":"2026-12 allowance"`)
+				assert.Contains(t, string(params), `"batch":true`)
+			}
+
+			var audits []model.AuditLog
+			require.NoError(t, model.LOG_DB.Find(&audits).Error)
+			require.Len(t, audits, 1)
+			assert.Equal(t, "user.quota_batch", audits[0].Action)
+			assert.True(t, audits[0].Success)
+		})
+	}
+}
+
+func TestBatchAdjustUserQuotaRejectsInvalidRequests(t *testing.T) {
+	for _, tc := range []struct{ name, body string }{
+		{"add_zero", `{"scope":"all","mode":"add","value":0}`},
+		{"override_negative", `{"scope":"all","mode":"override","value":-1}`},
+		{"subtract_mode", `{"scope":"all","mode":"subtract","value":10}`},
+		{"unknown_scope", `{"scope":"group","mode":"add","value":10}`},
+		{"departments_empty", `{"scope":"departments","mode":"add","value":10}`},
+		{"users_empty", `{"scope":"users","mode":"add","value":10}`},
+		{"no_match", `{"scope":"users","user_ids":[404],"mode":"add","value":10}`},
+		{"remark_too_long", `{"scope":"all","mode":"add","value":10,"remark":"` + strings.Repeat("备", 65) + `"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupManageUserTestDB(t)
+			require.NoError(t, db.AutoMigrate(&model.Department{}))
+			user := model.User{Id: 1, Username: "target", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Quota: 100, AffCode: "a1"}
+			require.NoError(t, db.Create(&user).Error)
+
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/api/user/quota/batch", strings.NewReader(tc.body))
+			c.Set("id", 9999)
+			c.Set("role", common.RoleRootUser)
+			BatchAdjustUserQuota(c)
+
+			require.Contains(t, recorder.Body.String(), `"success":false`)
+			require.NoError(t, db.First(&user, 1).Error)
+			assert.Equal(t, 100, user.Quota)
+			var count int64
+			require.NoError(t, model.LOG_DB.Model(&model.Log{}).Count(&count).Error)
+			assert.Zero(t, count)
+		})
+	}
+}
